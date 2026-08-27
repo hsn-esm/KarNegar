@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  نسخه‌ی آیکون برای اندروید ۷ و پایین‌تر که آیکون تطبیقی را نمی‌شناسد.
+  حاشیه‌های منفی همان بزرگ‌نمایی ۲۵ درصدی آیکون تطبیقی را تقلید می‌کنند
+  تا طرح در این حالت هم کوچک و پرت به نظر نرسد.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:left="-13dp"
+        android:top="-13dp"
+        android:right="-13dp"
+        android:bottom="-13dp" />
+</layer-list>

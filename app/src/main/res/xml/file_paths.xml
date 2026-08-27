@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="karnegar_cache" path="." />
+    <files-path name="karnegar_files" path="." />
+    <external-files-path name="karnegar_external" path="." />
+</paths>
