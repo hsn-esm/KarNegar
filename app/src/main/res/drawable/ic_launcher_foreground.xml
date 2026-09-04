@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    این فایل دیگر استفاده نمی‌شود.
+
+    طرحی که قبلاً این‌جا با مسیرهای برداری کشیده شده بود، بازطراحیِ من از نشان KN
+    بود نه خودِ تصویر ارسالی؛ شما آن را نپذیرفتید. آیکون اپ اکنون مستقیماً از
+    res/drawable-nodpi/ic_launcher_kn.png خوانده می‌شود، یعنی همان فایل تصویری
+    خودتان بدون هیچ تغییری.
+
+    این فایل را می‌توانید دستی حذف کنید؛ هیچ جای پروژه به آن ارجاع نمی‌دهد.
+    یک <vector> تُهی می‌ماند تا اگر جایی ارجاعی مانده بود، ساخت نشکند.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108" />

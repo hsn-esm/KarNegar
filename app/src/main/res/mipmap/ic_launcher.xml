@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  نسخه‌ی آیکون برای اندروید ۷ و پایین‌تر که آیکون تطبیقی را نمی‌شناسد.
+  این‌جا هم همان تصویر ارسالی است، بدون حاشیه‌ی منفی و بدون بزرگ‌نمایی،
+  چون خودِ تصویر حاشیه‌ی کافی دارد و هرگونه بریدن یا کشیدن، «تغییرِ» طرح است.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item android:drawable="@drawable/ic_launcher_kn" />
+</layer-list>

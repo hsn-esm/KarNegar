@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="karnegar_cache" path="." />
+    <files-path name="karnegar_files" path="." />
+    <external-files-path name="karnegar_external" path="." />
+    <!--
+        پوشه‌ی عمومی دانلود؛ فقط روی اندروید ۹ و پایین‌تر لازم است تا فایلِ
+        ذخیره‌شده در Download بتواند با FileProvider باز یا فرستاده شود.
+        روی اندروید ۱۰ و بالاتر نشانیِ MediaStore استفاده می‌شود.
+    -->
+    <external-path name="karnegar_downloads" path="Download/" />
+</paths>

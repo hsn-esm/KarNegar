@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        پس‌زمینه‌ی آیکون: سفیدِ خیلی کم‌رنگ، مثل تصویر مرجع.
+        کاملاً سفید نیست تا در لانچرهای روشن، مرز آیکون گم نشود.
+    -->
+    <color name="ic_launcher_background">#F2F6FA</color>
+</resources>

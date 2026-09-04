@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    آیکون تطبیقی. لایه‌ی رو، دقیقاً همان تصویر ارسالی است:
+    res/drawable-nodpi/ic_launcher_kn.png — هیچ بازطراحی و تغییری روی آن انجام نشده.
+    تصویر تمام‌بوم است و نشانِ KN در آن حدود ۲۶٪ تا ۷۴٪ عرض را می‌گیرد،
+    یعنی داخل ناحیه‌ی امنِ آیکون تطبیقی می‌ماند و با هیچ ماسکی بریده نمی‌شود.
+    <monochrome> عمداً حذف شد: نسخه‌ی یک‌رنگ لازمه‌اش بازطراحی طرح است.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_kn" />
+</adaptive-icon>

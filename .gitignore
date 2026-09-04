@@ -1,0 +1,15 @@
+# KarNegar
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# فایل‌های جای‌نگهدار موقتی که نباید در ریپازیتوری باشند
+gradlewrap/
+gradle/test.txt
+gradle/wrapper/x.txt

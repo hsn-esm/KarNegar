@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>آیکون کارنگار — نشان KN</title>
+<style>
+  :root { color-scheme: light }
+  body { background:#ffffff; color:#12232e; font-family:Tahoma,sans-serif; margin:0; padding:28px; }
+  h1 { font-size:19px; margin:0 0 6px; }
+  p.note { font-size:13px; color:#5a6b76; margin:0 0 22px; line-height:1.9; max-width:760px; }
+  .row { display:flex; gap:30px; flex-wrap:wrap; align-items:flex-end; margin-bottom:34px; }
+  .cell { text-align:center; }
+  .cap { font-size:12px; color:#5a6b76; margin-top:8px; }
+  h2 { font-size:15px; margin:26px 0 12px; border-top:1px solid #e3eaf0; padding-top:16px; }
+  .safe { outline:1px dashed #d64545; outline-offset:-1px; }
+</style>
+</head>
+<body>
+
+<h1>آیکون کارنگار — نشان KN</h1>
+<p class="note">
+  سه اندازه‌ی واقعی لانچر (۱۰۴، ۶۴ و ۴۸ پیکسل) با ماسک دایره، مربعِ گوشه‌گرد و
+  چهارگوش. سطر آخر دایره‌ی امنِ شعاع ۳۶ را روی طرح نشان می‌دهد؛ هر چه بیرون آن
+  بیفتد در بعضی لانچرها بریده می‌شود.
+</p>
+
+<script>
+const GRAD = `
+<defs>
+  <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="28" y1="76" x2="80" y2="32">
+    <stop offset="0" stop-color="#1E7FE0"/>
+    <stop offset="0.55" stop-color="#17A9D6"/>
+    <stop offset="1" stop-color="#12C8B0"/>
+  </linearGradient>
+</defs>`;
+
+const ART = `
+<g fill="none" stroke="url(#g)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M30,34 L30,74"/>
+  <path d="M32,54 L58,34"/>
+  <path d="M32,54 L58,74"/>
+  <path d="M62,74 L62,34 L78,74 L78,34"/>
+</g>
+<circle cx="47" cy="54" r="3.6" fill="url(#g)"/>`;
+
+// آیکون تطبیقی ۲۵ درصد بزرگ‌نمایی دارد: از ۱۰۸ فقط ۷۲ مرکزی دیده می‌شود
+function icon(size, shape, showSafe) {
+  const clip = shape === 'circle'
+    ? '<clipPath id="c"><circle cx="54" cy="54" r="54"/></clipPath>'
+    : shape === 'squircle'
+      ? '<clipPath id="c"><rect x="0" y="0" width="108" height="108" rx="26"/></clipPath>'
+      : '<clipPath id="c"><rect x="0" y="0" width="108" height="108"/></clipPath>';
+  const safe = showSafe
+    ? '<circle cx="54" cy="54" r="36" fill="none" stroke="#d64545" stroke-width="0.8" stroke-dasharray="3 3"/>'
+    : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 108 108">
+    ${GRAD}${clip}
+    <g clip-path="url(#c)">
+      <rect width="108" height="108" fill="#F2F6FA"/>
+      ${ART}${safe}
+    </g>
+  </svg>`;
+}
+
+function section(title, shape, safe) {
+  let html = `<h2>${title}</h2><div class="row">`;
+  for (const s of [104, 64, 48]) {
+    html += `<div class="cell">${icon(s, shape, safe)}<div class="cap">${s}px</div></div>`;
+  }
+  return html + '</div>';
+}
+
+document.write(
+  section('ماسک دایره', 'circle', false) +
+  section('ماسک مربع گوشه‌گرد', 'squircle', false) +
+  section('بدون ماسک (بوم کامل ۱۰۸)', 'square', false) +
+  section('دایره‌ی امن شعاع ۳۶', 'circle', true)
+);
+</script>
+
+</body>
+</html>
