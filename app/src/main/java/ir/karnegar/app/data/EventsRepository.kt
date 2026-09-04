@@ -8,33 +8,17 @@ import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 /**
- * دریافت مناسبت‌ها و تعطیلات از مخزن باز persian-calendar/events.
+ * دریافت مناسبت‌ها و تعطیلات از مخزن persian-calendar/events.
  *
- * چرا این مخزن؟ سرویس‌های تعطیلاتِ شخصی (persiancalapi، holidayapi و مانندشان) هر
- * چند وقت از دسترس خارج می‌شوند و همین باعث شد به‌روزرسانی تقویم در نسخه‌ی پیشین
- * کار نکند. مخزن persian-calendar داده‌ی پشتِ اپ «تقویم فارسی» است، روی
- * raw.githubusercontent.com میزبانی می‌شود و ساختارش سال‌ها ثابت مانده.
- *
- * تفاوت مهمِ داده: این مخزن «قاعده» می‌دهد نه فهرستِ یک سال. مناسبت شمسی با ماه و
- * روزِ شمسی و مناسبت قمری با ماه و روزِ قمری تعریف شده است، پس یک بار دریافت برای
- * همه‌ی سال‌ها بس است و اپ برای سال بعد هم به شبکه نیاز ندارد.
- *
- * فقط خواندنی و یک‌طرفه: هیچ داده‌ای از کاربر — نام، شیفت، کارکرد — ارسال نمی‌شود.
+ * داده‌ها از اینترنت دریافت و به ساختار مورد استفاده برنامه تبدیل می‌شوند.
  */
 object EventsRepository {
 
     private const val TIMEOUT_MS = 15_000
 
-    /**
-     * نشانی‌ها به ترتیب امتحان می‌شوند و اولین پاسخِ سالم پذیرفته می‌شود.
-     * شاخه‌ی پیش‌فرض مخزن ممکن است main یا master باشد، و نام فایل هم در
-     * بازآرایی‌های مخزن جابه‌جا شده است، پس همه‌ی حالت‌های رایج پوشش داده می‌شود.
-     */
     private val URLS = listOf(
         "https://raw.githubusercontent.com/persian-calendar/events/main/events.json",
-        "https://raw.githubusercontent.com/persian-calendar/events/master/events.json",
-        "https://raw.githubusercontent.com/persian-calendar/events/main/json/events.json",
-        "https://raw.githubusercontent.com/persian-calendar/events/main/output/events.json"
+        "https://raw.githubusercontent.com/persian-calendar/events/master/events.json"
     )
 
     sealed interface Result {
@@ -42,168 +26,521 @@ object EventsRepository {
         data class Failure(val message: String) : Result
     }
 
-    /** شبکه را مسدود می‌کند؛ باید از Dispatchers.IO صدا زده شود. */
+    /**
+     * دریافت و پردازش داده‌های مناسبت‌ها.
+     *
+     * این تابع عملیات شبکه انجام می‌دهد و باید از Dispatchers.IO فراخوانی شود.
+     */
     fun fetch(): Result {
         val errors = mutableListOf<String>()
+
         for (url in URLS) {
-            val outcome = runCatching { parse(get(url)) }
+            val outcome = runCatching {
+                parse(get(url))
+            }
+
             outcome.onSuccess { rules ->
-                // داده‌ی سالم صدها مناسبت دارد؛ کمتر از این یعنی ساختار عوض شده
-                if (rules.eventCount >= 50) return Result.Success(rules)
+                if (rules.eventCount >= 50) {
+                    return Result.Success(rules)
+                }
+
                 errors += "پاسخ ناقص بود (${rules.eventCount} مناسبت)"
-            }.onFailure { e ->
-                errors += e.message ?: e.javaClass.simpleName
+            }
+
+            outcome.onFailure { error ->
+                errors += error.message ?: error.javaClass.simpleName
             }
         }
-        return Result.Failure(errors.distinct().joinToString(" / ").ifBlank { "منبعی پاسخ نداد" })
+
+        return Result.Failure(
+            errors
+                .distinct()
+                .joinToString(" / ")
+                .ifBlank { "منبعی پاسخ نداد" }
+        )
     }
 
-    // ---------- شبکه ----------
+    // ---------------------------------------------------------
+    // شبکه
+    // ---------------------------------------------------------
 
     private fun get(url: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+        val connection = URL(url).openConnection() as HttpURLConnection
+
+        connection.apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
             instanceFollowRedirects = true
+
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "KarNegar/1.0 (Android)")
+            setRequestProperty("User-Agent", "KarNegar/1.5.0 (Android)")
         }
-        // فقط HTTPS؛ روی HTTP داده در مسیر قابل دست‌کاری است
-        require(connection is HttpsURLConnection) { "اتصال ناامن رد شد" }
+
+        require(connection is HttpsURLConnection) {
+            "اتصال ناامن رد شد"
+        }
+
         try {
-            val code = connection.responseCode
-            require(code == HttpURLConnection.HTTP_OK) { "کد پاسخ $code" }
-            return connection.inputStream.bufferedReader().use(BufferedReader::readText)
+            val responseCode = connection.responseCode
+
+            require(responseCode == HttpURLConnection.HTTP_OK) {
+                "کد پاسخ سرور: $responseCode"
+            }
+
+            return connection.inputStream
+                .bufferedReader()
+                .use(BufferedReader::readText)
+
         } finally {
             connection.disconnect()
         }
     }
 
-    // ---------- پارس ----------
+    // ---------------------------------------------------------
+    // پارس JSON
+    // ---------------------------------------------------------
 
-    /**
-     * نام کلیدهای دسته‌ها در فایل مخزن. هم شکلِ فاصله‌دار و هم بدون‌فاصله پوشش
-     * داده می‌شود، چون در نسخه‌های مختلف مخزن هر دو دیده شده است.
-     */
-    private val SOLAR_KEYS = listOf(
-        "Persian Calendar", "PersianCalendar", "persian", "solar", "Solar Calendar"
-    )
-    private val LUNAR_KEYS = listOf(
-        "Hijri Calendar", "HijriCalendar", "hijri", "lunar", "Islamic Calendar"
-    )
-    private val GREGORIAN_KEYS = listOf(
-        "Gregorian Calendar", "GregorianCalendar", "gregorian"
-    )
-
-    private val TITLE_KEYS = listOf("title", "name", "event", "description")
-    private val HOLIDAY_KEYS = listOf("holiday", "isHoliday", "is_holiday", "isOff")
-
-    /**
-     * ساختار فایل می‌تواند یکی از این دو باشد:
-     *
-     *  ۱) شیئی با کلیدِ هر تقویم که مقدارش آرایه‌ی مناسبت‌هاست (شکل رایج مخزن)
-     *  ۲) یک آرایه‌ی یکدست که نوعِ تقویمِ هر مناسبت در خودِ عنصر آمده است
-     *
-     * هر دو پوشش داده می‌شود تا بازآراییِ مخزن به‌روزرسانی را از کار نیندازد —
-     * همان چیزی که در پیاده‌سازی پیشین اتفاق افتاد.
-     */
     private fun parse(body: String): EventRules {
         val trimmed = body.trim()
+
         return when {
-            trimmed.startsWith("{") -> parseObject(JSONObject(trimmed))
-            trimmed.startsWith("[") -> parseFlatArray(JSONArray(trimmed))
-            else -> throw IllegalStateException("پاسخ JSON نبود")
+            trimmed.startsWith("{") -> {
+                parseObject(JSONObject(trimmed))
+            }
+
+            trimmed.startsWith("[") -> {
+                parseFlatArray(JSONArray(trimmed))
+            }
+
+            else -> {
+                throw IllegalStateException("پاسخ دریافتی JSON معتبر نیست")
+            }
         }
     }
 
+    /**
+     * ساختارهای مختلف JSON را پشتیبانی می‌کند.
+     *
+     * ساختار فعلی منبع:
+     *
+     * {
+     *   "Source": {...},
+     *   "#meta": [...],
+     *   "data": [
+     *      {
+     *          "calendar": "Persian",
+     *          "month": 1,
+     *          "day": 1,
+     *          ...
+     *      }
+     *   ]
+     * }
+     */
     private fun parseObject(root: JSONObject): EventRules {
-        val solar = collect(root, SOLAR_KEYS, EventCalendar.SOLAR)
-        val lunar = collect(root, LUNAR_KEYS, EventCalendar.LUNAR)
-        val gregorian = collect(root, GREGORIAN_KEYS, EventCalendar.GREGORIAN)
-        if (solar.isEmpty() && lunar.isEmpty() && gregorian.isEmpty()) {
-            // شاید ساختار تودرتو باشد و آرایه‌ها یک لایه پایین‌تر بیایند
-            val nested = root.keys().asSequence()
-                .mapNotNull { root.optJSONObject(it) }
-                .map { parseObject(it) }
-                .firstOrNull { !it.isEmpty }
-            if (nested != null) return nested
-            throw IllegalStateException("دسته‌ی مناسبت‌ها پیدا نشد")
+
+        // -----------------------------------------------------
+        // ساختار فعلی منبع:
+        // root["data"] = JSONArray
+        // -----------------------------------------------------
+        root.optJSONArray("data")?.let { data ->
+            return parseFlatArray(data)
         }
-        return EventRules(solar, lunar, gregorian)
+
+        // -----------------------------------------------------
+        // پشتیبانی از ساختارهای قدیمی یا جایگزین
+        // -----------------------------------------------------
+
+        val solar = collect(
+            root,
+            SOLAR_KEYS,
+            EventCalendar.SOLAR
+        )
+
+        val lunar = collect(
+            root,
+            LUNAR_KEYS,
+            EventCalendar.LUNAR
+        )
+
+        val gregorian = collect(
+            root,
+            GREGORIAN_KEYS,
+            EventCalendar.GREGORIAN
+        )
+
+        if (
+            solar.isNotEmpty() ||
+            lunar.isNotEmpty() ||
+            gregorian.isNotEmpty()
+        ) {
+            return EventRules(
+                solar = solar,
+                lunar = lunar,
+                gregorian = gregorian
+            )
+        }
+
+        // -----------------------------------------------------
+        // جستجو در ساختارهای تودرتو
+        // -----------------------------------------------------
+
+        val iterator = root.keys()
+
+        while (iterator.hasNext()) {
+            val key = iterator.next()
+
+            root.optJSONArray(key)?.let { array ->
+                val rules = parseFlatArray(array)
+
+                if (!rules.isEmpty) {
+                    return rules
+                }
+            }
+
+            root.optJSONObject(key)?.let { nestedObject ->
+                val rules = runCatching {
+                    parseObject(nestedObject)
+                }.getOrNull()
+
+                if (rules != null && !rules.isEmpty) {
+                    return rules
+                }
+            }
+        }
+
+        throw IllegalStateException(
+            "دسته یا آرایه مناسبت‌ها در داده دریافتی پیدا نشد"
+        )
     }
+
+    // ---------------------------------------------------------
+    // کلیدهای ساختارهای قدیمی
+    // ---------------------------------------------------------
+
+    private val SOLAR_KEYS = listOf(
+        "Persian Calendar",
+        "PersianCalendar",
+        "persian",
+        "solar",
+        "Solar Calendar"
+    )
+
+    private val LUNAR_KEYS = listOf(
+        "Hijri Calendar",
+        "HijriCalendar",
+        "hijri",
+        "lunar",
+        "Islamic Calendar"
+    )
+
+    private val GREGORIAN_KEYS = listOf(
+        "Gregorian Calendar",
+        "GregorianCalendar",
+        "gregorian"
+    )
+
+    private val TITLE_KEYS = listOf(
+        "title",
+        "name",
+        "event",
+        "description"
+    )
+
+    private val HOLIDAY_KEYS = listOf(
+        "holiday",
+        "isHoliday",
+        "is_holiday",
+        "isOff"
+    )
+
+    // ---------------------------------------------------------
+    // خواندن آرایه‌های دسته‌بندی‌شده
+    // ---------------------------------------------------------
 
     private fun collect(
         root: JSONObject,
         keys: List<String>,
         calendar: EventCalendar
     ): Map<Int, List<CalendarEvent>> {
-        val array = keys.firstNotNullOfOrNull { root.optJSONArray(it) } ?: return emptyMap()
-        val result = linkedMapOf<Int, MutableList<CalendarEvent>>()
+
+        val array = keys
+            .firstNotNullOfOrNull { key ->
+                root.optJSONArray(key)
+            }
+            ?: return emptyMap()
+
+        val result =
+            linkedMapOf<Int, MutableList<CalendarEvent>>()
+
         for (i in 0 until array.length()) {
-            // خرابی یک مناسبت نباید کل دسته را بی‌اعتبار کند
+
             runCatching {
-                val o = array.optJSONObject(i) ?: return@runCatching
-                addTo(result, o, calendar)
+
+                val event =
+                    array.optJSONObject(i)
+                        ?: return@runCatching
+
+                addTo(
+                    target = result,
+                    o = event,
+                    calendar = calendar
+                )
             }
         }
+
         return result
     }
 
-    private fun parseFlatArray(array: JSONArray): EventRules {
-        val solar = linkedMapOf<Int, MutableList<CalendarEvent>>()
-        val lunar = linkedMapOf<Int, MutableList<CalendarEvent>>()
-        val gregorian = linkedMapOf<Int, MutableList<CalendarEvent>>()
+    // ---------------------------------------------------------
+    // ساختار آرایه‌ای
+    // ---------------------------------------------------------
+
+    /**
+     * هر عنصر آرایه دارای فیلد calendar است.
+     *
+     * مثال:
+     *
+     * "calendar": "Persian"
+     * "calendar": "Hijri"
+     * "calendar": "Gregorian"
+     */
+    private fun parseFlatArray(
+        array: JSONArray
+    ): EventRules {
+
+        val solar =
+            linkedMapOf<Int, MutableList<CalendarEvent>>()
+
+        val lunar =
+            linkedMapOf<Int, MutableList<CalendarEvent>>()
+
+        val gregorian =
+            linkedMapOf<Int, MutableList<CalendarEvent>>()
+
         for (i in 0 until array.length()) {
+
             runCatching {
-                val o = array.optJSONObject(i) ?: return@runCatching
-                val raw = listOf("calendar", "calendarType", "type")
-                    .firstNotNullOfOrNull { o.optString(it, "").takeIf { s -> s.isNotBlank() } }
-                    ?.lowercase()
-                    ?: return@runCatching
+
+                val event =
+                    array.optJSONObject(i)
+                        ?: return@runCatching
+
+                val rawCalendar =
+                    event.optString("calendar", "")
+                        .trim()
+                        .lowercase()
+
                 val calendar = when {
-                    raw.contains("hijri") || raw.contains("lunar") || raw.contains("islamic") ->
+
+                    rawCalendar.contains("hijri") ||
+                        rawCalendar.contains("lunar") ||
+                        rawCalendar.contains("islamic") -> {
+
                         EventCalendar.LUNAR
-                    raw.contains("gregorian") -> EventCalendar.GREGORIAN
-                    raw.contains("persian") || raw.contains("solar") || raw.contains("jalali") ->
+                    }
+
+                    rawCalendar.contains("gregorian") -> {
+
+                        EventCalendar.GREGORIAN
+                    }
+
+                    rawCalendar.contains("persian") ||
+                        rawCalendar.contains("solar") ||
+                        rawCalendar.contains("jalali") -> {
+
                         EventCalendar.SOLAR
-                    else -> return@runCatching
+                    }
+
+                    else -> {
+                        return@runCatching
+                    }
                 }
+
                 val target = when (calendar) {
+
                     EventCalendar.SOLAR -> solar
+
                     EventCalendar.LUNAR -> lunar
+
                     EventCalendar.GREGORIAN -> gregorian
                 }
-                addTo(target, o, calendar)
+
+                addTo(
+                    target = target,
+                    o = event,
+                    calendar = calendar
+                )
             }
         }
-        return EventRules(solar, lunar, gregorian)
+
+        return EventRules(
+            solar = solar,
+            lunar = lunar,
+            gregorian = gregorian
+        )
     }
 
-    /** یک عنصر JSON را به نقشه‌ی «ماه×۱۰۰+روز» می‌افزاید */
+    // ---------------------------------------------------------
+    // افزودن مناسبت
+    // ---------------------------------------------------------
+
+    /**
+     * یک مناسبت JSON را به ساختار برنامه اضافه می‌کند.
+     *
+     * کلید ذخیره‌سازی:
+     *
+     * month * 100 + day
+     *
+     * مثال:
+     *
+     * 1/1  -> 101
+     * 12/29 -> 1229
+     */
     private fun addTo(
         target: MutableMap<Int, MutableList<CalendarEvent>>,
         o: JSONObject,
         calendar: EventCalendar
     ) {
-        val month = intOf(o, listOf("month", "m")) ?: return
-        val day = intOf(o, listOf("day", "d")) ?: return
-        if (month !in 1..12 || day !in 1..31) return
-        val title = TITLE_KEYS.firstNotNullOfOrNull {
-            o.optString(it, "").trim().takeIf { s -> s.isNotBlank() }
-        } ?: return
-        // در این مخزن مناسبت‌های غیرایرانی هم هست (مثل مناسبت‌های افغانستان)؛
-        // آن‌ها نباید در تقویم کاری یک کارمند ایرانی تعطیلی بسازند.
-        val type = o.optString("type", "").lowercase()
-        if (type.isNotBlank() && !type.contains("iran") && !type.contains("ancientiran")) return
-        val isHoliday = HOLIDAY_KEYS.any { o.optBoolean(it, false) }
-        val key = month * 100 + day
-        target.getOrPut(key) { mutableListOf() }.add(CalendarEvent(title, isHoliday, calendar))
+
+        // -----------------------------------------------------
+        // فقط مناسبت‌های ایران و ایران باستان
+        // -----------------------------------------------------
+
+        val type =
+            o.optString("type", "")
+                .trim()
+                .lowercase()
+
+        if (
+            type.isNotBlank() &&
+            !type.contains("iran")
+        ) {
+            return
+        }
+
+        // -----------------------------------------------------
+        // ماه و روز
+        // -----------------------------------------------------
+
+        val month =
+            intOf(
+                o,
+                listOf("month", "m")
+            )
+            ?: return
+
+        val day =
+            intOf(
+                o,
+                listOf("day", "d")
+            )
+            ?: return
+
+        if (month !in 1..12) {
+            return
+        }
+
+        if (day !in 1..31) {
+            return
+        }
+
+        // -----------------------------------------------------
+        // عنوان
+        // -----------------------------------------------------
+
+        val title =
+            TITLE_KEYS
+                .firstNotNullOfOrNull { key ->
+
+                    o.optString(key, "")
+                        .trim()
+                        .takeIf { it.isNotBlank() }
+                }
+                ?: return
+
+        // -----------------------------------------------------
+        // وضعیت تعطیل بودن
+        // -----------------------------------------------------
+
+        val isHoliday =
+            HOLIDAY_KEYS.any { key ->
+
+                when {
+                    o.optBoolean(key, false) -> true
+
+                    o.optString(key, "")
+                        .equals(
+                            "true",
+                            ignoreCase = true
+                        ) -> true
+
+                    else -> false
+                }
+            }
+
+        // -----------------------------------------------------
+        // ذخیره
+        // -----------------------------------------------------
+
+        val key =
+            month * 100 + day
+
+        target
+            .getOrPut(key) {
+                mutableListOf()
+            }
+            .add(
+                CalendarEvent(
+                    title = title,
+                    isHoliday = isHoliday,
+                    calendar = calendar
+                )
+            )
     }
 
-    private fun intOf(o: JSONObject, keys: List<String>): Int? =
-        keys.firstNotNullOfOrNull { k ->
-            if (!o.has(k)) null
-            else o.optInt(k, -1).takeIf { it >= 0 } ?: o.optString(k, "").trim().toIntOrNull()
+    // ---------------------------------------------------------
+    // تبدیل مقدار JSON به عدد
+    // ---------------------------------------------------------
+
+    private fun intOf(
+        o: JSONObject,
+        keys: List<String>
+    ): Int? {
+
+        for (key in keys) {
+
+            if (!o.has(key)) {
+                continue
+            }
+
+            val value = o.opt(key)
+
+            when (value) {
+
+                is Int -> {
+                    return value
+                }
+
+                is Long -> {
+                    return value.toInt()
+                }
+
+                is Double -> {
+                    return value.toInt()
+                }
+
+                is String -> {
+                    value
+                        .trim()
+                        .toIntOrNull()
+                        ?.let {
+                            return it
+                        }
+                }
+            }
         }
+
+        return null
+    }
 }
